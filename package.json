@@ -1,0 +1,20 @@
+{
+  "name": "warframe-discord-bot",
+  "version": "1.0.0",
+  "description": "Discord bot สำหรับแจ้งเตือนกิจกรรมและเวลาในเกม Warframe ด้วยข้อมูลจาก api.warframestat.us",
+  "type": "module",
+  "main": "src/index.js",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js"
+  },
+  "dependencies": {
+    "axios": "^1.7.7",
+    "discord.js": "^14.16.3",
+    "dotenv": "^16.4.5",
+    "node-cron": "^3.0.3"
+  }
+}

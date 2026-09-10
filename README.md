@@ -11,6 +11,12 @@ Discord bot สำหรับแจ้งเตือนกิจกรรม�
   - `/fissures` — Void Fissures ที่เปิดอยู่ แยกตาม tier (กรอง tier เฉพาะได้)
   - `/baro` — สถานะ Baro ปัจจุบัน
   - `/alerts` — Alerts + Nightwave challenges ที่แอคทีฟอยู่
+  - `/sortie` — ภารกิจ Sortie รายวัน (3 ขั้น + modifier + รางวัล)
+  - `/archon` — ภารกิจ Archon Hunt รายสัปดาห์
+  - `/arbitration` — ภารกิจ Arbitration ปัจจุบัน (โหนด/ประเภท/เวลาหมดอายุ)
+  - `/invasions` — Invasions พร้อมรางวัลทั้งสองฝั่ง (กรองรางวัลที่ต้องการฟาร์มได้)
+  - `/news` — ข่าวและประกาศล่าสุด
+  - `/nightwave` — Nightwave challenges แยก Daily / Weekly / Elite
 - **Background polling** ด้วย `node-cron` ทุก 5 นาที (ปรับได้) พร้อมเก็บ state กันแจ้งเตือนซ้ำ
 - **Retry แบบ exponential backoff** (สูงสุด 3 ครั้ง) และ validate schema ก่อนใช้ข้อมูลทุกครั้ง
 
@@ -30,7 +36,13 @@ warframe-bot/
 │   │   ├── cetus.js       # /cetus
 │   │   ├── fissures.js    # /fissures
 │   │   ├── baro.js        # /baro
-│   │   └── alerts.js      # /alerts
+│   │   ├── alerts.js      # /alerts
+│   │   ├── sortie.js      # /sortie
+│   │   ├── archon.js      # /archon
+│   │   ├── arbitration.js # /arbitration
+│   │   ├── invasions.js   # /invasions
+│   │   ├── news.js        # /news
+│   │   └── nightwave.js   # /nightwave
 │   └── utils/
 │       ├── embed.js       # helper สร้าง Discord embed
 │       └── stateStore.js  # เก็บ state (state.json) กันแจ้งเตือนซ้ำ
@@ -98,7 +110,7 @@ npm run dev
 
 ```
 ✅ บอทล็อกอินแล้วในชื่อ WarframeBot#1234
-✅ ลงทะเบียน slash commands แล้ว: /cetus /fissures /baro /alerts
+✅ ลงทะเบียน slash commands แล้ว: /cetus /fissures /baro /alerts /sortie /archon /arbitration /invasions /news /nightwave
 ⏳ ตั้งเวลาตรวจสอบ API ทุก 5 นาที
 ```
 
@@ -169,6 +181,86 @@ Slash commands อาจใช้เวลาแพร่กระจาย 1-2 
 - **🌊 Nightwave** — challenges พร้อมคำอธิบาย, ประเภท (Daily/Weekly), ค่า reputation ที่ได้
 
 > ถ้าไม่มีอะไรแอคทีฟเลย บอทจะแสดงข้อความว่า "ขณะนี้ไม่มี Alert หรือ Nightwave Challenge ที่กำลังแอคทีฟ"
+
+---
+
+### `/sortie` — ภารกิจ Sortie รายวัน
+
+แสดงภารกิจ Sortie ประจำวันทั้ง 3 ขั้น พร้อมโหนด, ประเภทภารกิจ, modifier (พร้อมคำอธิบาย), บอส, ฝั่งศัตรู, รางวัล และเวลาที่จะรีเซ็ตใหม่
+
+```
+/sortie
+```
+
+---
+
+### `/archon` — ภารกิจ Archon Hunt รายสัปดาห์
+
+แสดง Archon Hunt ประจำสัปดาห์ พร้อมบอส (เช่น Archon Amar), โหนดทั้ง 3 ขั้น, ประเภทภารกิจ, รางวัล และเวลาหมดอายุ (รีเซ็ตทุกวันจันทร์)
+
+```
+/archon
+```
+
+---
+
+### `/arbitration` — ภารกิจ Arbitration ปัจจุบัน
+
+เช็คว่าตอนนี้ Arbitration อยู่ที่โหนดไหน ประเภทภารกิจอะไร ศัตรูฝั่งไหน เหลือเวลาอีกกี่นาที รวมถึงบอกว่าต้องใช้ Archwing หรือไม่
+
+```
+/arbitration
+```
+
+> ถ้าขณะนั้นไม่มี Arbitration แอคทีฟ (รอรอบใหม่) บอทจะแสดงข้อความแจ้งแทน
+
+---
+
+### `/invasions` — Invasions และรางวัล
+
+แสดงรายการ Invasion ที่กำลังเกิด (ตัดตัวที่จบไปแล้วออก) พร้อมรางวัลทั้งฝั่งบุก (attacker) และฝั่งรับ (defender), ฝั่ง faction, ความคืบหน้า (%) และบอกเคส Infestation
+
+```
+/invasions
+```
+
+กรองเฉพาะรางวัลที่ต้องการฟาร์ม — พิมพ์ชื่อของ (ตรงบางส่วน ไม่สนตัวพิมพ์ก็ได้):
+
+```
+/invasions reward:Forma
+/invasions reward:Fieldron
+/invasions reward:Detonite Injector
+/invasions reward:Mutalist
+```
+
+ผลลัพธ์แต่ละรายการ: โหนด, ความคืบหน้า %, 🟦 ฝั่งที่ถ้าช่วยจะได้รางวัลอะไร, 🟥 ฝั่งที่ถ้าต้านจะได้รางวัลอะไร
+
+---
+
+### `/news` — ข่าวและประกาศล่าสุด
+
+แสดงข่าวและประกาศล่าสุดจากเว็บ Warframe เรียงใหม่สุดอยู่บน พร้อมลิงก์กดเข้าไปอ่านได้ รายการที่มีวันที่จะแสดงวันเผยแพร่ รายการประกาศพิเศษ (priority) จะมีเครื่องหมาย 🔴
+
+```
+/news
+```
+
+---
+
+### `/nightwave` — Nightwave Challenges
+
+แสดง Nightwave challenges ที่แอคทีฟอยู่ แยกกลุ่มตามประเภท พร้อมคำอธิบาย ค่า reputation และเวลาหมดอายุ
+
+```
+/nightwave
+```
+
+ผลลัพธ์ 3 กลุ่ม:
+- **📅 Daily** — challenge รายวัน
+- **🗓️ Weekly** — challenge รายสัปดาห์
+- **💎 Elite Weekly** — challenge รายสัปดาห์ระดับ Elite
+
+> ถ้าไม่มี Nightwave season ทำงานอยู่ บอทจะแสดงข้อความแจ้งแทน
 
 ---
 

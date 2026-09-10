@@ -286,3 +286,229 @@ export function toUnixSeconds(iso) {
   const t = Date.parse(iso);
   return Number.isNaN(t) ? Math.floor(Date.now() / 1000) : Math.floor(t / 1000);
 }
+
+/**
+ * รวมรายการรางวัลจาก object reward ของ API เป็นข้อความเดียว
+ * ใช้ร่วมกันทั้ง alerts และ invasions
+ * @param {object} reward - { items[], countedItems[{count,type,key}], credits }
+ * @returns {string} ข้อความรางวัล เช่น "3x Fieldron" หรือ "5,000 Credits" ถ้าไม่มีไอเทม
+ */
+function rewardToText(reward) {
+  const items = [
+    ...(reward?.items || []),
+    ...(reward?.countedItems || []).map(
+      (ci) => `${ci.count > 1 ? `${ci.count}x ` : ''}${ci.type || ci.key}`,
+    ),
+  ];
+  return items.length > 0
+    ? items.join(', ')
+    : `${Number(reward?.credits || 0).toLocaleString('en-US')} Credits`;
+}
+
+/**
+ * สร้าง embed สำหรับคำสั่ง /sortie - ภารกิจ Sortie รายวัน 3 ขั้น
+ * @param {object} sortie - ข้อมูล sortie จาก API
+ * @returns {EmbedBuilder}
+ */
+export function sortieEmbed(sortie) {
+  const embed = baseEmbed(
+    0xf44336,
+    `🗡️ Sortie วันนี้ — ${sortie.boss || 'ไม่ทราบบอส'} (${sortie.faction || '?'})`,
+  );
+
+  const lines = (sortie.variants || []).map(
+    (v, i) =>
+      `**${i + 1}. ${v.node}** — ${v.missionType}\n` +
+      `   ⚡ ${v.modifier || 'ไม่มี modifier'}\n` +
+      `   ↳ ${v.modifierDescription || ''}`,
+  );
+  embed.addFields({
+    name: '📜 ภารกิจทั้ง 3 ขั้น',
+    value: (lines.join('\n') || 'ไม่มีข้อมูล').slice(0, 1024),
+  });
+  embed.addFields({
+    name: '🎁 รางวัล',
+    value: sortie.rewardPool || 'ไม่ทราบ',
+    inline: true,
+  });
+  embed.addFields({
+    name: '⏰ รีเซ็ตใหม่',
+    value: `<t:${toUnixSeconds(sortie.expiry)}:R>`,
+    inline: true,
+  });
+  return embed;
+}
+
+/**
+ * สร้าง embed สำหรับคำสั่ง /archon - ภารกิจ Archon Hunt รายสัปดาห์
+ * @param {object} archon - ข้อมูล archonHunt จาก API
+ * @returns {EmbedBuilder}
+ */
+export function archonEmbed(archon) {
+  const embed = baseEmbed(
+    0xe91e63,
+    `👑 Archon Hunt สัปดาห์นี้ — ${archon.boss || 'ไม่ทราบบอส'} (${archon.faction || '?'})`,
+  );
+
+  const lines = (archon.missions || []).map(
+    (m, i) => `**${i + 1}. ${m.node}** — ${m.type || 'Unknown'}`,
+  );
+  embed.addFields({
+    name: '📜 ภารกิจทั้ง 3 ขั้น',
+    value: (lines.join('\n') || 'ไม่มีข้อมูล').slice(0, 1024),
+  });
+  embed.addFields({
+    name: '🎁 รางวัล',
+    value: archon.rewardPool || 'ไม่ทราบ',
+    inline: true,
+  });
+  embed.addFields({
+    name: '⏰ หมดอายุ',
+    value: `<t:${toUnixSeconds(archon.expiry)}:R>`,
+    inline: true,
+  });
+  return embed;
+}
+
+/**
+ * สร้าง embed สำหรับคำสั่ง /arbitration - ภารกิจ Arbitration ปัจจุบัน
+ * @param {object|null} arbitration - ข้อมูล arbitration จาก API (null = ไม่มีแอคทีฟ)
+ * @returns {EmbedBuilder}
+ */
+export function arbitrationEmbed(arbitration) {
+  if (!arbitration) {
+    return baseEmbed(0x9e9e9e, '⚖️ ขณะนี้ยังไม่มี Arbitration')
+      .setDescription('รอข้อมูลรอบใหม่จากเซิร์ฟเวอร์ แล้วลองใหม่ภายหลัง');
+  }
+  return baseEmbed(0xffc107, '⚖️ Arbitration ปัจจุบัน').addFields(
+    { name: '🗺️ โหนด', value: arbitration.node || 'ไม่ทราบ', inline: true },
+    { name: '🎯 ประเภท', value: arbitration.type || 'Unknown', inline: true },
+    { name: '👹 ศัตรู', value: arbitration.enemy || 'Unknown', inline: true },
+    {
+      name: '⏰ หมดอายุ',
+      value: `<t:${toUnixSeconds(arbitration.expiry)}:R>`,
+      inline: true,
+    },
+    { name: '🪽 ต้องใช้ Archwing', value: arbitration.archwing ? 'ใช่' : 'ไม่', inline: true },
+  );
+}
+
+/**
+ * สร้าง embed สำหรับคำสั่ง /invasions - รายการ invasion ที่กำลังเกิด
+ * @param {Array} invasions - รายการ invasion (ที่ยังไม่จบ) จาก API
+ * @param {string|null} rewardFilter - ข้อความกรองรางวัล (substring, ไม่สนตัวพิมพ์)
+ * @returns {EmbedBuilder}
+ */
+export function invasionsEmbed(invasions, rewardFilter) {
+  let list = invasions || [];
+  if (rewardFilter) {
+    const needle = rewardFilter.toLowerCase();
+    list = list.filter((inv) => {
+      const texts = [inv.attacker?.reward, inv.defender?.reward].map(rewardToText);
+      return texts.some((t) => t.toLowerCase().includes(needle));
+    });
+  }
+
+  const title = rewardFilter
+    ? `⚔️ Invasions ที่มีรางวัล "${rewardFilter}"`
+    : '⚔️ Invasions ที่กำลังเกิด';
+  const embed = baseEmbed(0x795548, title);
+
+  if (list.length === 0) {
+    embed.setDescription(
+      rewardFilter
+        ? `ไม่พบ invasion ที่มีรางวัลตรงกับ "${rewardFilter}"`
+        : 'ขณะนี้ไม่มี Invasion ที่กำลังเกิด',
+    );
+    return embed;
+  }
+
+  const lines = list.slice(0, 10).map((inv) => {
+    const pct = Math.floor(inv.completion ?? 0);
+    const attacker = `${inv.attacker?.faction || '?'} → ${rewardToText(inv.attacker?.reward)}`;
+    const defender = `${inv.defender?.faction || '?'} → ${rewardToText(inv.defender?.reward)}`;
+    return (
+      `• **${inv.node}** (${pct}%)\n` +
+      `   🟦 ช่วย ${attacker}\n` +
+      `   🟥 ต้าน ${defender}` +
+      (inv.vsInfestation ? '\n   🦠 Infestation' : '')
+    );
+  });
+  embed.addFields({
+    name: `รายการ (${list.length})`,
+    value: lines.join('\n').slice(0, 1024),
+  });
+  return embed;
+}
+
+/**
+ * สร้าง embed สำหรับคำสั่ง /news - ข่าวและประกาศล่าสุด
+ * รายการที่ไม่มีวันที่ (epoch 1970) จะแสดงเป็น "ประกาศถาวร" ไม่แสดง timestamp
+ * @param {Array} news - รายการข่าวจาก API
+ * @returns {EmbedBuilder}
+ */
+export function newsEmbed(news) {
+  const embed = baseEmbed(0x03a9f4, '📰 ข่าวและประกาศล่าสุด');
+
+  const list = news || [];
+  if (list.length === 0) {
+    embed.setDescription('ไม่มีข่าวในระบบ');
+    return embed;
+  }
+
+  // เรียงข่าวที่มีวันที่จริงใหม่สุดอยู่บน แล้วตามด้วยพวกไม่มีวันที่
+  const EPOCH_1970 = Date.parse('1970-01-01T00:00:00.000Z');
+  const sorted = [...list].sort((a, b) => {
+    const da = Date.parse(a.date) || 0;
+    const db = Date.parse(b.date) || 0;
+    return db - da;
+  });
+
+  const lines = sorted.slice(0, 15).map((n) => {
+    const t = Date.parse(n.date);
+    const hasDate = Number.isFinite(t) && t > EPOCH_1970;
+    const dateStr = hasDate ? ` <t:${Math.floor(t / 1000)}:d>` : '';
+    const flag = n.priority ? ' 🔴' : '';
+    return `• [${n.message.trim()}](${n.link || ''})${dateStr}${flag}`;
+  });
+  embed.setDescription(lines.join('\n').slice(0, 4096));
+  return embed;
+}
+
+/**
+ * สร้าง embed สำหรับคำสั่ง /nightwave - Nightwave challenges แยกตามประเภท
+ * @param {object|null} nightwave - ข้อมูล nightwave จาก API (null = ไม่มี season)
+ * @returns {EmbedBuilder}
+ */
+export function nightwaveEmbed(nightwave) {
+  if (!nightwave || !Array.isArray(nightwave.activeChallenges)) {
+    return baseEmbed(0x9e9e9e, '🌊 Nightwave')
+      .setDescription('ขณะนี้ไม่มี Nightwave season ที่กำลังทำงาน');
+  }
+
+  const embed = baseEmbed(
+    0x3f51b5,
+    `🌊 Nightwave — ${nightwave.season ? `Season ${nightwave.season}` : 'ปัจจุบัน'}`,
+  );
+
+  const groups = [
+    { key: 'daily', label: '📅 Daily', test: (c) => c.isDaily },
+    { key: 'weekly', label: '🗓️ Weekly', test: (c) => !c.isDaily && !c.isElite },
+    { key: 'elite', label: '💎 Elite Weekly', test: (c) => !c.isDaily && c.isElite },
+  ];
+
+  for (const g of groups) {
+    const list = nightwave.activeChallenges.filter(g.test);
+    if (list.length === 0) continue;
+    const lines = list.map(
+      (c) =>
+        `• **${c.title}** — ${c.desc} (${Number(c.reputation).toLocaleString('en-US')} rep) หมดอายุ <t:${toUnixSeconds(c.expiry)}:R>`,
+    );
+    embed.addFields({ name: g.label, value: lines.join('\n').slice(0, 1024) });
+  }
+
+  if ((embed.data.fields?.length ?? 0) === 0) {
+    embed.setDescription('ไม่มี challenge ที่แอคทีฟอยู่');
+  }
+  return embed;
+}

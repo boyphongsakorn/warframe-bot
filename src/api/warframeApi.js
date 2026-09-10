@@ -12,6 +12,17 @@ import axios from 'axios';
  * - fissures[]: { id, activation, expiry, node, missionType, enemy, tier, tierNum, isStorm, isHard }
  * - nightwave: { id, season, activation, expiry, activeChallenges[{ id, activation, expiry,
  *   isDaily, isElite, desc, title, reputation, isPermanent }] }
+ * - sortie: { id, activation, expiry, rewardPool, variants[{ missionType, modifier,
+ *   modifierDescription, node }], boss, faction }
+ * - archonHunt: { id, activation, expiry, rewardPool, missions[{ node, type }], boss, faction }
+ *   (หมายเหตุ: ใช้ field `missions` ไม่ใช่ `variants`)
+ * - arbitration: { id, node, activation, expiry, enemy, type, archwing, sharkwing, expired }
+ *   *เมื่อไม่มี arbitration แอคทีฟ API จะคืน placeholder ที่ expired: true* (ตรวจจาก field นี้)
+ * - invasions[]: { id, activation, node, desc, attacker: { reward, faction },
+ *   defender: { reward, faction }, vsInfestation, count, requiredRuns, completion,
+ *   completed, rewardTypes[] }
+ * - news[]: { id, message, link, imageLink, priority, date, update, primeAccess, stream }
+ *   *บางรายการ (เช่นลิงก์ชุมชน) มี date เป็น epoch 1970 — ถือว่า "ไม่มีวันที่"*
  */
 
 const BASE_URL = 'https://api.warframestat.us';
@@ -178,6 +189,78 @@ export async function getNightwave() {
     (d) =>
       d === null ||
       (d && typeof d === 'object' && Array.isArray(d.activeChallenges)),
+  );
+}
+
+/**
+ * ดึงข้อมูล Sortie รายวัน
+ * @returns {Promise<object>} sortie
+ */
+export async function getSortie() {
+  const data = await fetchWithRetry(`/${getPlatform()}/sortie`);
+  return validate(
+    data,
+    'sortie',
+    (d) => d && d.id && d.expiry && Array.isArray(d.variants),
+  );
+}
+
+/**
+ * ดึงข้อมูล Archon Hunt รายสัปดาห์
+ * หมายเหตุ: archonHunt ใช้ field `missions` แทน `variants` ที่ sortie ใช้
+ * @returns {Promise<object>} archonHunt
+ */
+export async function getArchonHunt() {
+  const data = await fetchWithRetry(`/${getPlatform()}/archonHunt`);
+  return validate(
+    data,
+    'archonHunt',
+    (d) => d && d.id && d.expiry && Array.isArray(d.missions),
+  );
+}
+
+/**
+ * ดึงข้อมูล Arbitration ปัจจุบัน
+ * เมื่อไม่มี arbitration แอคทีฟ API จะคืน placeholder ที่มี expired: true
+ * ฟังก์ชันนี้จะคืน null แทนเพื่อให้ caller แสดงข้อความ "ยังไม่เปิด" ได้ง่าย
+ * @returns {Promise<object|null>} arbitration หรือ null ถ้าไม่มีที่แอคทีฟ
+ */
+export async function getArbitration() {
+  const data = await fetchWithRetry(`/${getPlatform()}/arbitration`);
+  return validate(
+    data,
+    'arbitration',
+    (d) => d && d.id && d.node !== undefined && typeof d.expired === 'boolean',
+  )?.expired
+    ? null
+    : data;
+}
+
+/**
+ * ดึงรายการ Invasions ที่กำลังเกิด
+ * การบุกจบเมื่อ completion >= 100 หรือ completed = true จึงกรองออกให้เหลือเฉพาะที่ทำได้
+ * @returns {Promise<Array>} invasions ที่ยังไม่จบ
+ */
+export async function getInvasions() {
+  const data = await fetchWithRetry(`/${getPlatform()}/invasions`);
+  const list = validate(
+    data,
+    'invasions',
+    (d) => Array.isArray(d) && d.every((i) => i && i.id && i.node),
+  );
+  return list.filter((inv) => !inv.completed && (inv.completion ?? 0) < 100);
+}
+
+/**
+ * ดึงรายการข่าว/ประกาศ
+ * @returns {Promise<Array>} news
+ */
+export async function getNews() {
+  const data = await fetchWithRetry(`/${getPlatform()}/news`);
+  return validate(
+    data,
+    'news',
+    (d) => Array.isArray(d) && d.every((n) => n && n.id && n.message),
   );
 }
 

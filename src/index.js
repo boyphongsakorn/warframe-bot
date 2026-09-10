@@ -9,6 +9,12 @@ import * as cetus from './commands/cetus.js';
 import * as fissures from './commands/fissures.js';
 import * as baro from './commands/baro.js';
 import * as alerts from './commands/alerts.js';
+import * as sortie from './commands/sortie.js';
+import * as archon from './commands/archon.js';
+import * as arbitration from './commands/arbitration.js';
+import * as invasions from './commands/invasions.js';
+import * as news from './commands/news.js';
+import * as nightwave from './commands/nightwave.js';
 
 /**
  * index.js — entry point ของบอท
@@ -43,7 +49,7 @@ const client = new Client({
 
 // โหลด slash commands ลง collection เพื่อหาตัวจัดการจากชื่อคำสั่ง
 client.commands = new Collection();
-for (const cmd of [cetus, fissures, baro, alerts]) {
+for (const cmd of [cetus, fissures, baro, alerts, sortie, archon, arbitration, invasions, news, nightwave]) {
   client.commands.set(cmd.data.name, cmd);
 }
 
@@ -101,10 +107,14 @@ client.once(Events.ClientReady, async (c) => {
   console.log(`✅ บอทล็อกอินแล้วในชื่อ ${c.user.tag}`);
 
   // ลงทะเบียน slash commands แบบ global (ใช้เวลาแพร่กระจายสักครู่ ปกติภายใน 1 นาที)
-  const commandsData = [cetus, fissures, baro, alerts].map((cmd) => cmd.data.toJSON());
+  const commandsData = [
+    cetus, fissures, baro, alerts, sortie, archon, arbitration, invasions, news, nightwave,
+  ].map((cmd) => cmd.data.toJSON());
   try {
     await c.application.commands.set(commandsData);
-    console.log('✅ ลงทะเบียน slash commands แล้ว: /cetus /fissures /baro /alerts');
+    console.log(
+      '✅ ลงทะเบียน slash commands แล้ว: /cetus /fissures /baro /alerts /sortie /archon /arbitration /invasions /news /nightwave',
+    );
   } catch (err) {
     console.error('❌ ลงทะเบียน slash commands ไม่สำเร็จ:', err);
   }
